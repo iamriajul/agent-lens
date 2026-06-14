@@ -1,36 +1,36 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 require("dotenv").config();
 
 const express = require("express");
+const os = require("os");
 const path = require("path");
 
 const { ADAPTERS, getAdapter, listAdapters, collectEvents } = require("./adapters");
 const { PER_AGENT, costFor } = require("./rates");
 const { refreshIfStale: refreshPricing, snapshot: pricingSnapshot } = require("./pricing");
+const { createEventCache } = require("./event-cache");
+const { resolvePort } = require("./server-config");
 
 const app = express();
-const PORT = parseInt(process.env.PORT || "3456", 10);
+const PORT = resolvePort();
 
 app.use(express.static(__dirname));
 
-const cache = { events: null, ts: 0, agentKey: "all" };
-const TTL_MS = 30_000;
-
-async function getEvents(agentFilter) {
-  const key = agentFilter || "all";
-  const now = Date.now();
-  if (cache.events && cache.agentKey === key && now - cache.ts < TTL_MS) {
-    return cache.events;
-  }
-  const events = await collectEvents(agentFilter);
-  cache.events = events;
-  cache.agentKey = key;
-  cache.ts = now;
-  return events;
-}
+const TTL_MS = parseInt(process.env.AGENT_LENS_EVENT_CACHE_TTL_MS || String(5 * 60 * 1000), 10);
+const EVENT_CACHE_DIR =
+  process.env.AGENT_LENS_EVENT_CACHE_DIR || path.join(os.tmpdir(), "agent-lens-event-cache");
+const { getEvents } = createEventCache({
+  ttlMs: TTL_MS,
+  loadEvents: collectEvents,
+  persistDir: EVENT_CACHE_DIR,
+});
 
 function dayOf(ts) {
   return (ts || "").slice(0, 10);
+}
+
+function eventsFor(req) {
+  return getEvents(req.query.agent || null, { refresh: req.query.refresh === "1" });
 }
 
 app.get("/api/agents", (req, res) => {
@@ -64,11 +64,11 @@ app.get("/api/rates", (req, res) => {
   res.json(out);
 });
 
-app.get("/api/stats", (req, res) => {
+app.get("/api/stats", async (req, res) => {
   const stats = {};
   for (const adapter of ADAPTERS) {
     if (adapter.name === "claude" && adapter.enabled() && adapter.readStatsCache) {
-      const s = adapter.readStatsCache();
+      const s = await adapter.readStatsCache();
       if (s) stats.claude = s;
     }
   }
@@ -77,8 +77,7 @@ app.get("/api/stats", (req, res) => {
 
 app.get("/api/history", async (req, res) => {
   try {
-    const agent = req.query.agent || null;
-    const events = await getEvents(agent);
+    const events = await eventsFor(req);
     const items = events
       .filter((e) => (e.type === "user" || e.type === "user_log") && e.prompt && e.prompt.trim())
       .map((e) => ({
@@ -97,8 +96,7 @@ app.get("/api/history", async (req, res) => {
 
 app.get("/api/projects", async (req, res) => {
   try {
-    const agent = req.query.agent || null;
-    const events = await getEvents(agent);
+    const events = await eventsFor(req);
     const projects = {};
     for (const e of events) {
       if (e.type !== "user") continue;
@@ -138,8 +136,7 @@ app.get("/api/projects", async (req, res) => {
 
 app.get("/api/tool-calls", async (req, res) => {
   try {
-    const agent = req.query.agent || null;
-    const events = await getEvents(agent);
+    const events = await eventsFor(req);
     const counts = {};
     const byProject = {};
     for (const e of events) {
@@ -160,8 +157,7 @@ app.get("/api/tool-calls", async (req, res) => {
 
 app.get("/api/tool-details/:toolName", async (req, res) => {
   try {
-    const agent = req.query.agent || null;
-    const events = await getEvents(agent);
+    const events = await eventsFor(req);
     const toolName = req.params.toolName;
     const calls = [];
     for (const e of events) {
@@ -200,7 +196,7 @@ app.get("/api/daily-costs", async (req, res) => {
   try {
     const agent = req.query.agent || null;
     await refreshPricing();
-    const events = await getEvents(agent);
+    const events = await eventsFor(req);
     const daily = {};
 
     for (const e of events) {
@@ -323,7 +319,7 @@ app.get("/api/metrics", async (req, res) => {
   try {
     const agent = req.query.agent || null;
     await refreshPricing();
-    const events = await getEvents(agent);
+    const events = await eventsFor(req);
 
     const hourly = Array(24).fill(0);
     const weekday = Array(7).fill(0);

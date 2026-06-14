@@ -7,6 +7,7 @@ const ENABLED = process.env.DISABLE_OPENROUTER_PRICING !== "1";
 
 const state = {
   byId: new Map(),
+  lookupCache: new Map(),
   ts: 0,
   fetching: null,
   lastError: null,
@@ -43,6 +44,7 @@ async function fetchPricing() {
     byId.set(m.id, normalize(m));
   }
   state.byId = byId;
+  state.lookupCache = new Map();
   state.ts = Date.now();
   state.lastError = null;
   return byId;
@@ -70,6 +72,7 @@ const AGENT_PROVIDER = {
   codex: "openai",
   gemini: "google",
   kimi: "moonshotai",
+  hermes: "nousresearch",
 };
 
 function slugify(model) {
@@ -81,7 +84,7 @@ function slugify(model) {
   return s;
 }
 
-function lookup(agent, model) {
+function lookupUncached(agent, model) {
   if (!ENABLED || !model || state.byId.size === 0) return null;
   if (state.byId.has(model)) return state.byId.get(model);
 
@@ -115,6 +118,14 @@ function lookup(agent, model) {
   return best;
 }
 
+function lookup(agent, model) {
+  const key = `${agent || ""}\0${model || ""}`;
+  if (state.lookupCache.has(key)) return state.lookupCache.get(key);
+  const price = lookupUncached(agent, model);
+  state.lookupCache.set(key, price);
+  return price;
+}
+
 function priceFor(agent, model) {
   refreshIfStale();
   return lookup(agent, model);
@@ -135,6 +146,7 @@ function snapshot() {
     fetchedAt: state.ts ? new Date(state.ts).toISOString() : null,
     ttlMs: TTL_MS,
     count: state.byId.size,
+    lookupCacheSize: state.lookupCache.size,
     error: state.lastError,
     models: out,
   };
