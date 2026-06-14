@@ -19,14 +19,15 @@ async function getEvents(emit) {
   const sessionsDir = path.join(dataDir(), "sessions");
   if (!fs.existsSync(sessionsDir)) return;
 
-  const files = findFiles(sessionsDir, ".jsonl");
-  for (const file of files) {
-    let sessionId = "";
-    let project = "unknown";
-    let model = null;
-    let lastTotalUsage = { input: 0, cached: 0, output: 0, reasoning: 0 };
+  const files = await findFiles(sessionsDir, ".jsonl");
+  await Promise.all(
+    files.map(async (file) => {
+      let sessionId = "";
+      let project = "unknown";
+      let model = null;
+      let lastTotalUsage = { input: 0, cached: 0, output: 0, reasoning: 0 };
 
-    await streamJsonl(file, (obj) => {
+      await streamJsonl(file, (obj) => {
       const ts = obj.timestamp;
       const t = obj.type;
       const p = obj.payload;
@@ -108,7 +109,8 @@ async function getEvents(emit) {
     });
 
     void lastTotalUsage;
-  }
+    })
+  );
 }
 
 module.exports = { name: NAME, displayName: DISPLAY, dataDir, enabled, getEvents };

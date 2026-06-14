@@ -1391,7 +1391,7 @@
       btn._bound = true;
       btn.addEventListener('click', async () => {
         btn.classList.add('spinning');
-        await reload();
+        await reload(true);
         btn.classList.remove('spinning');
       });
     }
@@ -1433,8 +1433,12 @@
       }
     }
 
-    function q(path) {
-      return currentAgent ? `${path}?agent=${encodeURIComponent(currentAgent)}` : path;
+    function q(path, forceRefresh = false) {
+      const params = new URLSearchParams();
+      if (currentAgent) params.set('agent', currentAgent);
+      if (forceRefresh) params.set('refresh', '1');
+      const qs = params.toString();
+      return qs ? `${path}?${qs}` : path;
     }
 
     function showLoading() {
@@ -1499,7 +1503,7 @@
       if (host) host.classList.toggle('collapsed', !expanded);
     }
 
-    async function reload() {
+    async function reload(forceRefresh = false) {
       showLoading();
       _listExpanded.projects = false;
       _listExpanded.tools = false;
@@ -1508,11 +1512,11 @@
 
       const [stats, history, toolData, projects, costData, metrics] = await Promise.all([
         fetch('/api/stats').then(r => r.json()),
-        fetch(q('/api/history')).then(r => r.json()),
-        fetch(q('/api/tool-calls')).then(r => r.json()),
-        fetch(q('/api/projects')).then(r => r.json()),
-        fetch(q('/api/daily-costs')).then(r => r.json()),
-        fetch(q('/api/metrics')).then(r => r.json()),
+        fetch(q('/api/history', forceRefresh)).then(r => r.json()),
+        fetch(q('/api/tool-calls', forceRefresh)).then(r => r.json()),
+        fetch(q('/api/projects', forceRefresh)).then(r => r.json()),
+        fetch(q('/api/daily-costs', forceRefresh)).then(r => r.json()),
+        fetch(q('/api/metrics', forceRefresh)).then(r => r.json()),
       ]);
 
       renderTopbarKpis(costData);

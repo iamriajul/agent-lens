@@ -12,6 +12,7 @@ Local dashboard for visualizing usage across **eight AI coding agents** — sess
 |-------|-------------------|------------|------------|--------|
 | **Claude Code** | `~/.claude` | full | full | yes |
 | **Codex CLI** | `~/.codex` | full | full | yes |
+| **Hermes Agent** | `~/.hermes` | full | full | yes |
 | **Gemini CLI** | `~/.gemini` | full | full | yes |
 | **OpenCode** | `~/.local/share/opencode` | full (SQLite) | full | yes |
 | **Kimi Code** | `~/.kimi` | partial (TurnBegin events) | partial | partial |
@@ -19,7 +20,7 @@ Local dashboard for visualizing usage across **eight AI coding agents** — sess
 | **Antigravity** | `~/.gemini/antigravity` | session metadata only (protobuf) | — | — |
 | **GitHub Copilot** | VS Code `User/workspaceStorage/<hash>/chatSessions/*.{json,jsonl}` (auto-detected per OS) | session metadata + prompts (no token counts in chat JSON) | full | yes |
 
-OpenCode and Cursor read SQLite via the optional `better-sqlite3` dependency. If the prebuild fails on your platform the dashboard still works for the JSONL/JSON-based agents (Claude, Codex, Gemini, Kimi, Antigravity).
+OpenCode and Cursor read SQLite via the optional `better-sqlite3` dependency. If the prebuild fails on your platform the dashboard still works for the JSONL/JSON-based agents (Claude, Codex, Hermes, Gemini, Kimi, Antigravity).
 
 ## Features
 
@@ -88,6 +89,7 @@ The dashboard runs on macOS, Linux, and Windows. Path resolution per agent:
 |-------|-------|-------|---------|
 | Claude | `~/.claude` | `~/.claude` | `%USERPROFILE%\.claude` |
 | Codex | `~/.codex` | `~/.codex` | `%USERPROFILE%\.codex` |
+| Hermes | `~/.hermes` | `~/.hermes` | `%USERPROFILE%\.hermes` |
 | Gemini | `~/.gemini` | `~/.gemini` | `%USERPROFILE%\.gemini` |
 | OpenCode | `~/.local/share/opencode` | `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode` | `%LOCALAPPDATA%\opencode` → `%APPDATA%\opencode` → `~/.local/share/opencode` (first existing) |
 | Kimi | `~/.kimi` | `~/.kimi` | `%USERPROFILE%\.kimi` |
@@ -95,7 +97,7 @@ The dashboard runs on macOS, Linux, and Windows. Path resolution per agent:
 | Antigravity | `~/.gemini/antigravity` | `~/.gemini/antigravity` | `%USERPROFILE%\.gemini\antigravity` |
 | Copilot | `~/Library/Application Support/{Code,Code - Insiders,VSCodium,Cursor}/User` | `~/.config/{Code,Code - Insiders,VSCodium,Cursor}/User` | `%APPDATA%\{Code,Code - Insiders,VSCodium,Cursor}\User` |
 
-Override any of these with `CLAUDE_DIR`, `CODEX_DIR`, `GEMINI_DIR`, `OPENCODE_DIR`, `KIMI_DIR`, `CURSOR_DIR` (or `CURSOR_DB` for a specific `.vscdb` file), `ANTIGRAVITY_DIR`, `COPILOT_DIR` / `COPILOT_VSCODE_ROOT`.
+Override any of these with `CLAUDE_DIR`, `CODEX_DIR`, `HERMES_DIR`, `GEMINI_DIR`, `OPENCODE_DIR`, `KIMI_DIR`, `CURSOR_DIR` (or `CURSOR_DB` for a specific `.vscdb` file), `ANTIGRAVITY_DIR`, `COPILOT_DIR` / `COPILOT_VSCODE_ROOT`.
 
 ## Quick start
 
@@ -126,12 +128,16 @@ Open [http://localhost:3456](http://localhost:3456).
 
 ## Configuration
 
+Set `AGENT_LENS_PORT` to run the dashboard on a different local port.
+Event data is cached in memory and on disk for faster startup after the first scan. Tune freshness with `AGENT_LENS_EVENT_CACHE_TTL_MS` or set `AGENT_LENS_EVENT_CACHE_DIR` to choose the disk-cache location.
+
 ### Data directories
 
 | Variable | Default |
 |----------|---------|
 | `CLAUDE_DIR` | `~/.claude` |
 | `CODEX_DIR` | `~/.codex` |
+| `HERMES_DIR` | `~/.hermes` |
 | `GEMINI_DIR` | `~/.gemini` |
 | `OPENCODE_DIR` | `~/.local/share/opencode` |
 | `KIMI_DIR` | `~/.kimi` |
@@ -146,6 +152,7 @@ Each agent has its own rate set. Defaults are sensible approximations; override 
 |-----------------|---------------|----------------|--------------------|---------------------|
 | `RATE_*` (Claude) | 5.0 | 25.0 | 0.5 | 6.25 |
 | `RATE_CODEX_*` | 1.25 | 10.0 | 0.125 | 0 |
+| `RATE_HERMES_*` | 0.5 | 1.5 | 0.1 | 0 |
 | `RATE_GEMINI_*` | 1.25 | 10.0 | 0.31 | 0 |
 | `RATE_OPENCODE_*` | 3.0 | 15.0 | 0.3 | 3.75 |
 | `RATE_KIMI_*` | 0.55 | 2.20 | 0.15 | 0 |

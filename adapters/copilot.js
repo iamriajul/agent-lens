@@ -56,8 +56,8 @@ function enabled() {
   return false;
 }
 
-function projectForWorkspace(wsDir) {
-  const ws = readJsonSafe(path.join(wsDir, "workspace.json"));
+async function projectForWorkspace(wsDir) {
+  const ws = await readJsonSafe(path.join(wsDir, "workspace.json"));
   if (ws && typeof ws.folder === "string") {
     let p = ws.folder.replace(/^file:\/\//, "");
     try {
@@ -184,26 +184,30 @@ async function getEvents(emit) {
       continue;
     }
 
-    for (const ws of workspaces) {
-      const wsDir = path.join(wsRoot, ws.name);
-      const project = projectForWorkspace(wsDir);
-      const chatDir = path.join(wsDir, "chatSessions");
-      if (!fs.existsSync(chatDir)) continue;
+    await Promise.all(
+      workspaces.map(async (ws) => {
+        const wsDir = path.join(wsRoot, ws.name);
+        const project = await projectForWorkspace(wsDir);
+        const chatDir = path.join(wsDir, "chatSessions");
+        if (!fs.existsSync(chatDir)) return;
 
-      const files = findFiles(chatDir, [".json", ".jsonl"]);
-      for (const file of files) {
-        if (file.endsWith(".jsonl")) {
-          let latest = null;
-          await streamJsonl(file, (rec) => {
-            if (rec && rec.kind === 0 && rec.v) latest = rec.v;
-          });
-          if (latest) processSession(latest, file, project, emit);
-        } else {
-          const data = readJsonSafe(file);
-          if (data) processSession(data, file, project, emit);
-        }
-      }
-    }
+        const files = await findFiles(chatDir, [".json", ".jsonl"]);
+        await Promise.all(
+          files.map(async (file) => {
+            if (file.endsWith(".jsonl")) {
+              let latest = null;
+              await streamJsonl(file, (rec) => {
+                if (rec && rec.kind === 0 && rec.v) latest = rec.v;
+              });
+              if (latest) processSession(latest, file, project, emit);
+            } else {
+              const data = await readJsonSafe(file);
+              if (data) processSession(data, file, project, emit);
+            }
+          })
+        );
+      })
+    );
   }
 }
 
