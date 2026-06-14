@@ -6,8 +6,9 @@ const kimi = require("./kimi");
 const cursor = require("./cursor");
 const antigravity = require("./antigravity");
 const copilot = require("./copilot");
+const hermes = require("./hermes");
 
-const ADAPTERS = [claude, codex, gemini, opencode, kimi, cursor, antigravity, copilot];
+const ADAPTERS = [claude, codex, gemini, opencode, kimi, cursor, antigravity, copilot, hermes];
 
 function getAdapter(name) {
   return ADAPTERS.find((a) => a.name === name);
@@ -28,14 +29,16 @@ async function collectEvents(filterAgent) {
     ? ADAPTERS.filter((a) => a.name === filterAgent)
     : ADAPTERS;
 
-  for (const adapter of targets) {
-    if (!adapter.enabled()) continue;
-    try {
-      await adapter.getEvents((e) => events.push(e));
-    } catch (err) {
-      console.warn(`[${adapter.name}] error collecting events: ${err.message}`);
-    }
-  }
+  await Promise.all(
+    targets.map(async (adapter) => {
+      if (!adapter.enabled()) return;
+      try {
+        await adapter.getEvents((e) => events.push(e));
+      } catch (err) {
+        console.warn(`[${adapter.name}] error collecting events: ${err.message}`);
+      }
+    })
+  );
   return events;
 }
 

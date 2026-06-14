@@ -1,27 +1,35 @@
 const fs = require("fs");
+const fsPromises = fs.promises;
 const path = require("path");
 const readline = require("readline");
 
-function findFiles(dir, extensions) {
+async function findFiles(dir, extensions) {
   const results = [];
-  if (!fs.existsSync(dir)) return results;
+  try {
+    const stat = await fsPromises.stat(dir);
+    if (!stat.isDirectory()) return results;
+  } catch {
+    return results;
+  }
   const exts = Array.isArray(extensions) ? extensions : [extensions];
-  function walk(d) {
+  async function walk(d) {
     let entries;
     try {
-      entries = fs.readdirSync(d, { withFileTypes: true });
+      entries = await fsPromises.readdir(d, { withFileTypes: true });
     } catch {
       return;
     }
-    for (const entry of entries) {
-      const full = path.join(d, entry.name);
-      try {
-        if (entry.isDirectory()) walk(full);
-        else if (exts.some((e) => entry.name.endsWith(e))) results.push(full);
-      } catch {}
-    }
+    await Promise.all(
+      entries.map(async (entry) => {
+        const full = path.join(d, entry.name);
+        try {
+          if (entry.isDirectory()) await walk(full);
+          else if (exts.some((e) => entry.name.endsWith(e))) results.push(full);
+        } catch {}
+      })
+    );
   }
-  walk(dir);
+  await walk(dir);
   return results;
 }
 
@@ -42,19 +50,43 @@ function streamJsonl(filePath, onLine) {
   });
 }
 
-function readJsonSafe(filePath) {
+async function readJsonSafe(filePath) {
   try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const content = await fsPromises.readFile(filePath, "utf8");
+    return JSON.parse(content);
   } catch {
     return null;
   }
 }
 
 function loadSqlite() {
+  if (process.versions && process.versions.bun) {
+    try {
+      const { Database } = require("bun:sqlite");
+      return class BunSqliteCompat {
+        constructor(file, options = {}) {
+          this.db = new Database(file, { readonly: Boolean(options.readonly || options.readOnly) });
+        }
+
+        prepare(sql) {
+          return this.db.query(sql);
+        }
+
+        close() {
+          return this.db.close();
+        }
+      };
+    } catch {}
+  }
+
   try {
     return require("better-sqlite3");
   } catch {
-    return null;
+    try {
+      return require("node:sqlite").DatabaseSync;
+    } catch {
+      return null;
+    }
   }
 }
 

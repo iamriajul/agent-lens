@@ -64,6 +64,13 @@ const PER_AGENT = {
     cacheCreate: rate("RATE_COPILOT_CACHE_CREATE", 0),
     label: "GitHub Copilot bills via subscription; chat session JSON has no per-request token counts",
   },
+  hermes: {
+    input: rate("RATE_HERMES_INPUT", 0.5),
+    output: rate("RATE_HERMES_OUTPUT", 1.5),
+    cacheRead: rate("RATE_HERMES_CACHE_READ", 0.1),
+    cacheCreate: rate("RATE_HERMES_CACHE_CREATE", 0),
+    label: "Hermes Agent approximation; override with RATE_HERMES_*",
+  },
 };
 
 function rateFor(agent) {
