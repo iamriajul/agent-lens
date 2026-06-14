@@ -25,10 +25,36 @@ function candidates() {
 
 function dataDir() {
   const list = candidates();
+  const existing = [];
   for (const c of list) {
-    if (fs.existsSync(path.join(c, "opencode.db"))) return c;
+    if (fs.existsSync(path.join(c, "opencode.db"))) existing.push(c);
   }
+  const withRows = existing.find((c) => hasUsageRows(path.join(c, "opencode.db")));
+  if (withRows) return withRows;
+  if (existing.length) return existing[0];
   return list[0];
+}
+
+function hasUsageRows(file) {
+  const Database = loadSqlite();
+  if (!Database) return true;
+  let db;
+  try {
+    db = new Database(file, { readonly: true, readOnly: true, fileMustExist: true });
+    for (const table of ["message", "session"]) {
+      try {
+        const row = db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
+        if (row) return true;
+      } catch {}
+    }
+  } catch {
+    return false;
+  } finally {
+    try {
+      if (db) db.close();
+    } catch {}
+  }
+  return false;
 }
 
 function dbPath() {
